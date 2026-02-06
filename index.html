@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>HMI – Descubrimiento ESP32</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+body {
+  font-family: Arial;
+  background: #eef2f5;
+  text-align: center;
+  padding: 20px;
+}
+
+.hmi {
+  background: white;
+  padding: 25px;
+  max-width: 450px;
+  margin: auto;
+  border-radius: 12px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.15);
+}
+
+.indicator {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  margin: 6px auto;
+  background: #6c757d;
+}
+
+.on { background: #28a745; }
+.off { background: #dc3545; }
+
+select, button {
+  width: 90%;
+  padding: 14px;
+  margin: 8px 0;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+}
+
+button { color: white; cursor: pointer; }
+.btn-connect { background: #007bff; }
+.btn-on { background: #28a745; }
+.btn-off { background: #dc3545; }
+</style>
+</head>
+
+<body>
+
+<h2>HMI – ESP32 Detectados</h2>
+
+<div class="hmi">
+
+  <p>ESP32 disponibles</p>
+  <select id="lista"></select>
+
+  <p>Conexión</p>
+  <div id="connLed" class="indicator"></div>
+
+  <p>Válvula</p>
+  <div id="valveLed" class="indicator"></div>
+
+  <button class="btn-connect" onclick="conectar()">CONECTAR</button>
+  <button class="btn-on" onclick="encender()">ENCENDER</button>
+  <button class="btn-off" onclick="apagar()">APAGAR</button>
+
+</div>
+
+<script>
+const broker = "wss://test.mosquitto.org:8081";
+const discoveryTopic = "esp32/discovery";
+
+let client = mqtt.connect(broker);
+let selectedESP = "";
+let topicCmd = "";
+let topicEstado = "";
+
+const lista = document.getElementById("lista");
+const connLed = document.getElementById("connLed");
+const valveLed = document.getElementById("valveLed");
+
+let devices = new Set();
+
+client.on("connect", () => {
+  client.subscribe(discoveryTopic);
+});
+
+client.on("message", (topic, message) => {
+  if (topic === discoveryTopic) {
+    const id = message.toString();
+    if (!devices.has(id)) {
+      devices.add(id);
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.text = id;
+      lista.appendChild(opt);
+    }
+  }
+
+  if (topic === topicEstado) {
+    valveLed.className =
+      message.toString() === "1" ? "indicator on" : "indicator off";
+  }
+});
+
+function conectar() {
+  selectedESP = lista.value;
+  if (!selectedESP) {
+    alert("No hay ESP32 detectados");
+    return;
+  }
+
+  topicCmd = `${selectedESP}/valvula/cmd`;
+  topicEstado = `${selectedESP}/valvula/estado`;
+
+  client.subscribe(topicEstado);
+  connLed.className = "indicator on";
+}
+
+function encender() {
+  if (topicCmd) client.publish(topicCmd, "1");
+}
+
+function apagar() {
+  if (topicCmd) client.publish(topicCmd, "0");
+}
+</script>
+
+</body>
+</html>
